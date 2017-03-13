@@ -520,6 +520,7 @@ int main(int argc, char **argv)
 
   for (iter = 1; iter <= timesteps; iter++) {
 
+#pragma omp for collapse(2)
     for (i = 0; i < ARCHnodes; i++)
       for (j = 0; j < 3; j++)
 	disp[disptplus][i][j] = 0.0;
@@ -529,6 +530,7 @@ int main(int argc, char **argv)
 
     time = iter * Exc.dt;
 
+#pragma omp for 
     for (i = 0; i < ARCHnodes; i++)
     {
       for (j = 0; j < 3; j++)
@@ -1268,6 +1270,7 @@ void smvp(int nodes, double (*A)[3][3], int *Acol, int *Aindex,
   int Anext, Alast, col;
   double sum0, sum1, sum2;
 
+#pragma omp parallel for collapse(2)
   for (j = 0; j < numthreads; j++) {
     for (i = 0; i < nodes; i++) {
       w2[j][i] = 0;
@@ -1324,6 +1327,7 @@ void smvp(int nodes, double (*A)[3][3], int *Acol, int *Aindex,
     w1[my_cpu_id][i].third += sum2;
   }
 
+#pragma omp parallel for private(j) shared(i)
   for (i = 0; i < nodes; i++) {
     for (j = 0; j < numthreads; j++) {
       if (w2[j][i]) {
@@ -1501,6 +1505,7 @@ int i, j, k;
     fflush(stderr);
     exit(0);
   }
+
   for (i = 0; i < numthreads; i++) {
     w1[i] = (smallarray_t *) malloc(ARCHnodes * sizeof(smallarray_t));
     if (w1[i] == (smallarray_t *) NULL) {
@@ -1525,6 +1530,7 @@ int i, j, k;
     fflush(stderr);
     exit(0);
   }
+
   for (i = 0; i < numthreads; i++) {
     w2[i] = (int *) malloc(ARCHnodes * sizeof(int));
     if (w2[i] == (int *) NULL) {
