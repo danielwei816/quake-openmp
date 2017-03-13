@@ -1286,6 +1286,7 @@ void smvp(int nodes, double (*A)[3][3], int *Acol, int *Aindex,
 #endif
 }
 
+#pragma omp parallel for private(i, sum0, sum1, sum2, Anext, Alast, col)
   for (i = 0; i < nodes; i++) {
     Anext = Aindex[i];
     Alast = Aindex[i + 1];
