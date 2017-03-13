@@ -296,8 +296,8 @@ int main(int argc, char **argv)
      temp2[my_cpu_id]=-1;
      bigdist1[my_cpu_id]=1000000.0;
      bigdist2[my_cpu_id]=1000000.0;
-}
 
+#pragma omp for
      for (i = 0; i < ARCHnodes; i++) {
         c0[0] = ARCHcoord[i][0];
         c0[1] = ARCHcoord[i][1];
@@ -332,6 +332,7 @@ int main(int argc, char **argv)
          Src.epicenternode = temp2[i];
       } 
     }
+}
     free(bigdist1);
     free(bigdist2);
     free(temp1);
