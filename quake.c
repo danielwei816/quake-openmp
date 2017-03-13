@@ -252,6 +252,7 @@ int main(int argc, char **argv)
   fflush(stderr);
 
 /* Redefine nodekind to be 1 for all surface nodes */
+#pragma omp parallel for shared(nodekind, nodekindf)
   for (i = 0; i < ARCHnodes; i++) {
     nodekind[i] = (int) nodekindf[i];
     if (nodekind[i] == 3) 
@@ -285,7 +286,7 @@ int main(int argc, char **argv)
     exit(0);
   }
 
-#pragma omp parallel private(my_cpu_id,d1,d2,c0) 
+#pragma omp parallel private(my_cpu_id,d1,d2,c0) shared(temp1, temp2, bigdist1, bigdist2, ARCHcoord)
 {
 #ifdef _OPENMP
      my_cpu_id=omp_get_thread_num();
@@ -315,6 +316,7 @@ int main(int argc, char **argv)
            temp2[my_cpu_id] = i;
        }
     }
+}
 
     d1=bigdist1[0];
     d2=bigdist2[0];
@@ -332,7 +334,7 @@ int main(int argc, char **argv)
          Src.epicenternode = temp2[i];
       } 
     }
-}
+
     free(bigdist1);
     free(bigdist2);
     free(temp1);
@@ -360,6 +362,7 @@ int main(int argc, char **argv)
 
   if (Src.sourcenode != 0) {
 
+    #pragma omp parallel for private(cor, vertices, xc, i, j, k) shared(ARCHvertex, ARCHcoord, source_elms)
     for (i = 0; i < ARCHelems; i++) {
       for (j = 0; j < 4; j++)
         cor[j] = ARCHvertex[i][j];
@@ -382,6 +385,10 @@ int main(int argc, char **argv)
   }
 
 /* Simulation */
+  // time the simulation part to see if parallizing the complex loop below will give a large improvement
+#ifdef _OPENMP
+  double tic = omp_get_wtime(); 
+#endif
 
   for (i = 0; i < ARCHelems; i++) {
     for (j = 0; j < 12; j++) {
@@ -514,6 +521,10 @@ int main(int argc, char **argv)
       }
     }
   }
+#ifdef _OPENMP
+  double toc = omp_get_wtime();
+  printf("Simulation time: %f seconds\n\n", (double)(toc - tic)  );
+#endif
 
 /* Time integration loop */
 
@@ -521,7 +532,7 @@ int main(int argc, char **argv)
 
   for (iter = 1; iter <= timesteps; iter++) {
 
-#pragma omp for collapse(2)
+#pragma omp parallel for collapse(2) shared(disp)
     for (i = 0; i < ARCHnodes; i++)
       for (j = 0; j < 3; j++)
 	disp[disptplus][i][j] = 0.0;
@@ -531,7 +542,7 @@ int main(int argc, char **argv)
 
     time = iter * Exc.dt;
 
-#pragma omp for 
+#pragma omp parallel for private(i, j) collapse(2) 
     for (i = 0; i < ARCHnodes; i++)
     {
       for (j = 0; j < 3; j++)
@@ -578,6 +589,7 @@ int main(int argc, char **argv)
   }
 
   /* free w1 work array */
+#pragma omp parallel for shared(w1)
   for (i = 0; i < numthreads; i++)
   {
      free(w1[i]);
@@ -664,6 +676,7 @@ double *det;
   c[2][2] = a[0][0] * a[1][1] - a[0][1] * a[1][0];
   *det = a[0][0] * c[0][0] + a[0][1] * c[1][0] + a[0][2] * c[2][0];
   d1 = 1.0 / *det;
+//#pragma omp parallel for collapse(2)
   for (i = 0; i < 3; i++)
     for (j = 0; j < 3; j++)
       a[i][j] = c[i][j] * d1;
@@ -1271,15 +1284,16 @@ void smvp(int nodes, double (*A)[3][3], int *Acol, int *Aindex,
   int Anext, Alast, col;
   double sum0, sum1, sum2;
 
-#pragma omp parallel for collapse(2)
+#pragma omp parallel private(my_cpu_id,i,j,Anext,Alast,col,sum0,sum1,sum2) shared(A, w1, w2, Aindex, v, Acol)
+{
+#pragma omp for collapse(2)
   for (j = 0; j < numthreads; j++) {
     for (i = 0; i < nodes; i++) {
       w2[j][i] = 0;
     }
   }
 
-#pragma omp parallel private(my_cpu_id,i,Anext,Alast,col,sum0,sum1,sum2) shared(A, w1, w2, Aindex, v)
-{
+
 #ifdef _OPENMP
   my_cpu_id = omp_get_thread_num();
 #else
@@ -1327,9 +1341,9 @@ void smvp(int nodes, double (*A)[3][3], int *Acol, int *Aindex,
     w1[my_cpu_id][i].second += sum1;
     w1[my_cpu_id][i].third += sum2;
   }
-}
 
-#pragma omp parallel for private(j) shared(i)
+
+#pragma omp for collapse(2)
   for (i = 0; i < nodes; i++) {
     for (j = 0; j < numthreads; j++) {
       if (w2[j][i]) {
@@ -1339,6 +1353,8 @@ void smvp(int nodes, double (*A)[3][3], int *Acol, int *Aindex,
       }
     }
   }
+}
+
 }
 
 
@@ -1508,6 +1524,7 @@ int i, j, k;
     exit(0);
   }
 
+//#pragma omp parallel for shared(w1)
   for (i = 0; i < numthreads; i++) {
     w1[i] = (smallarray_t *) malloc(ARCHnodes * sizeof(smallarray_t));
     if (w1[i] == (smallarray_t *) NULL) {
@@ -1517,6 +1534,7 @@ int i, j, k;
     }
   }
 
+#pragma omp parallel for collapse(2) shared(w1)
   for (j = 0; j < numthreads; j++) {
     for (i = 0; i < ARCHnodes; i++) {
       w1[j][i].first = 0.0;
@@ -1533,6 +1551,7 @@ int i, j, k;
     exit(0);
   }
 
+//#pragma omp parallel for shared(w2)
   for (i = 0; i < numthreads; i++) {
     w2[i] = (int *) malloc(ARCHnodes * sizeof(int));
     if (w2[i] == (int *) NULL) {
@@ -1542,6 +1561,7 @@ int i, j, k;
     }
   }
 
+#pragma omp parallel for collapse(2) shared(w2)
   for (j = 0; j < numthreads; j++) {
     for (i = 0; i < ARCHnodes; i++) {
       w2[j][i] = 0;
@@ -1577,6 +1597,9 @@ int i, j, k;
 
   /* Initializations */
 
+#pragma omp parallel
+{
+  #pragma omp for private(i, j)
   for (i = 0; i < ARCHnodes; i++) {
     nodekind[i] = 0;
     for (j = 0; j < 3; j++) {
@@ -1591,10 +1614,12 @@ int i, j, k;
     }
   }
 
+  #pragma omp for
   for (i = 0; i < ARCHelems; i++) {
     source_elms[i] = 1;
   }
 
+  #pragma omp for collapse(3)
   for (i = 0; i < ARCHmatrixlen; i++) {
     for (j = 0; j < 3; j++) {
       for (k = 0; k < 3; k++) {
@@ -1602,5 +1627,6 @@ int i, j, k;
       }
     }
   }
+}
 }
 /*--------------------------------------------------------------------------*/ 
