@@ -1277,16 +1277,15 @@ void smvp(int nodes, double (*A)[3][3], int *Acol, int *Aindex,
     }
   }
 
-#pragma omp parallel private(my_cpu_id,i,Anext,Alast,col,sum0,sum1,sum2)
+#pragma omp parallel private(my_cpu_id,i,Anext,Alast,col,sum0,sum1,sum2) shared(A, w1, w2, Aindex, v)
 {
 #ifdef _OPENMP
   my_cpu_id = omp_get_thread_num();
 #else
    my_cpu_id=0;
 #endif
-}
 
-#pragma omp parallel for private(i, sum0, sum1, sum2, Anext, Alast, col)
+#pragma omp for
   for (i = 0; i < nodes; i++) {
     Anext = Aindex[i];
     Alast = Aindex[i + 1];
@@ -1327,6 +1326,7 @@ void smvp(int nodes, double (*A)[3][3], int *Acol, int *Aindex,
     w1[my_cpu_id][i].second += sum1;
     w1[my_cpu_id][i].third += sum2;
   }
+}
 
 #pragma omp parallel for private(j) shared(i)
   for (i = 0; i < nodes; i++) {
